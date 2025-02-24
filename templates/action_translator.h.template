@@ -1,0 +1,46 @@
+<%
+  import genmsg
+  import genmsg.msg_loader
+  import genmsg.command_line
+
+  action_namespace = spec.package
+  action_name = spec.short_name
+  action_type = '::%s::%s'%(action_namespace, action_name)
+
+  for f in spec.parsed_fields():
+    print('f.name: %s'%f.name)
+    if f.name == 'action_goal':
+      action_goal_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path)
+      for ff in action_goal_spec.parsed_fields():
+        if ff.name == 'goal':
+          goal_spec = genmsg.msg_loader.load_msg_by_type(msg_context, ff.base_type, search_path)
+          goal_type = '::%s::%s'%(goal_spec.package, goal_spec.short_name)
+          break
+    if f.name == 'action_result':
+      action_result_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path)
+      for ff in action_result_spec.parsed_fields():
+        if ff.name == 'result':
+          print('ff.name: %s'%ff.name)
+          result_spec = genmsg.msg_loader.load_msg_by_type(msg_context, ff.base_type, search_path)
+          result_type = '::%s::%s'%(result_spec.package, result_spec.short_name)
+          break  
+%>
+<%include file="apache_license.template"/>
+
+#pragma once
+
+#include "ros_msgs_autocoder/action_translator.h"
+
+#include <${action_namespace}/${action_name}.h>
+
+namespace trace {
+namespace ros_msgs_autocoder {
+
+class ${action_name}Translator : public ActionTranslator<${action_type}> {
+public:
+  ${goal_type} ToGoal(const PropertyMap &properties) override;
+  PropertyMap FromResult(const ${result_type} &result) override;
+};
+
+} // namespace ros_msgs_autocoder
+} // namespace trace

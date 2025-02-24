@@ -1,0 +1,258 @@
+<%!
+    _cpp_types_by_ros_builtins = {
+      "bool":       "bool",
+      "int8":       "int8_t",
+      "uint8":      "uint8_t",
+      "int16":      "int16_t",
+      "uint16":     "uint16_t",
+      "int32":      "int32_t",
+      "uint32":     "uint32_t",
+      "int64":      "int64_t",
+      "uint64":     "uint64_t",
+      "float32":    "float",
+      "float64":    "double",
+      "string":     "std::string"
+    }
+
+    def to_cpp_type(ros_builtin_type):
+        return _cpp_types_by_ros_builtins[ros_builtin_type]
+%>
+<%def name="map_result_to_property_map(msg_spec, msg_context, search_path, ns='', depth=0)">
+<%
+    print('*** ' + msg_spec.full_name + ' ***')
+%>
+% for f in msg_spec.parsed_fields():
+    <%
+        depth_var = chr(ord('i') + depth) ## potentially dangerous!
+        print('depth_var: ' + depth_var)
+        key = '%s.%s'%(ns, f.name) if len(ns) > 0 else f.name
+        property_map_key = key
+        for index in range(depth):
+            d = chr(ord('i') + index)
+            property_map_key = property_map_key.replace("[" + d + "]", ".\"+std::to_string(" + d + ")+\"")
+        print('property_map_key: ' + property_map_key)
+        print('(key, is_array, is_header, is_builtin): (' + key + ', ' + str(f.is_array) + ', ' + str(f.is_header) + ', ' + str(f.is_builtin) + ')')
+    %>
+    % if (f.is_builtin == True and f.is_array == False):
+    ## try {
+    % if f.type == 'time':
+    properties["${property_map_key}"] = std::to_string(result.${key}.toSec());
+    % elif f.type == 'duration':
+    properties["${property_map_key}"] = std::to_string(result.${key}.toSec());
+    % elif f.type == 'string':
+    properties["${property_map_key}"] = result.${key};
+    % else:
+    properties["${property_map_key}"] = std::to_string(result.${key});
+    % endif
+    ## } catch (...) {
+    ## throw std::out_of_range("Unsupported type in result message.");
+    ## }
+    % elif f.is_builtin == True and f.is_array == True:
+    strings.clear();
+    for (std::size_t ${depth_var} = 0; ${depth_var} < result.${key}.size(); ++${depth_var}) {
+        ## try {
+        % if f.base_type == 'time':
+        properties["${property_map_key}." + std::to_string(${depth_var})] = std::to_string(result.${key}[${depth_var}].toSec());
+        % elif f.base_type == 'duration':
+        properties["${property_map_key}." + std::to_string(${depth_var})] = std::to_string(result.${key}[${depth_var}].toSec());
+        % elif f.base_type == 'string':
+        properties["${property_map_key}." + std::to_string(${depth_var})] = result.${key}[${depth_var}];
+        % else:
+        properties["${property_map_key}." + std::to_string(${depth_var})] = std::to_string(result.${key}[${depth_var}]);
+        % endif
+        strings.push_back(properties["${property_map_key}." + std::to_string(${depth_var})]);
+        ## } catch (...) {
+        ##     throw std::out_of_range("Unsupported type in result message.");
+        ## }
+    }
+    properties["${property_map_key}"] = trace::ConnectorInterface::vector_to_string(strings);
+    % elif f.is_header == False and f.is_array == False:
+        <% field_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path) %>\
+    ${map_result_to_property_map(field_spec, msg_context, search_path, key, depth+1)}\    
+    % elif f.is_header == False and f.is_array == True:
+    for (std::size_t ${depth_var} = 0; ${depth_var} < result.${key}.size(); ++${depth_var}) {
+        <% field_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path) %>\
+            ${map_result_to_property_map(field_spec, msg_context, search_path, key + '[' + depth_var + ']', depth+1)}\
+    }
+    % else:
+    // unknown key: ${key}
+    % endif
+%endfor
+</%def>
+## <%def name="print_field_mapping(msg_spec, msg_context, search_path, ns='')">
+## % for f in msg_spec.parsed_fields():
+##     <%
+##         key = '%s.%s'%(ns, f.name) if len(ns) > 0 else f.name\
+##     %>
+##     % if (f.is_builtin == True and f.is_array == False):
+##     try {
+##         % if f.type == 'time':
+##         goal.${key} = ros::Time(boost::lexical_cast<double>(properties.at("${key}")));
+##         % elif f.type == 'duration':
+##         goal.${key} = ros::Duration(boost::lexical_cast<double>(properties.at("${key}")));
+##         % else:
+##         goal.${key} = boost::lexical_cast<${to_cpp_type(f.type)}>(properties.at("${key}"));
+##         % endif
+##     } catch (...) {
+##         throw std::out_of_range("Missing property (${key}) in mission model.");
+##     }
+##     % elif f.is_header == False and f.is_array == False:
+## <% field_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path) %>\
+##     ${print_field_mapping(field_spec, msg_context, search_path, key)}\
+##     % endif
+## %endfor
+## </%def>
+<%def name="print_field_mapping(msg_spec, msg_context, search_path, ns='', depth=0)">
+<%
+    print('*** ' + msg_spec.full_name + ' ***')
+%>
+% for f in msg_spec.parsed_fields():
+    <%
+        print('f.type: ' + f.type)
+        depth_var = chr(ord('i') + depth) ## potentially dangerous!
+        print('depth_var: ' + depth_var)
+        key = '%s.%s'%(ns, f.name) if len(ns) > 0 else f.name
+        property_map_key = key
+        for index in range(depth):
+            d = chr(ord('i') + index)
+            property_map_key = property_map_key.replace("[" + d + "]", ".\"+std::to_string(" + d + ")+\"")
+        print('property_map_key: ' + property_map_key)
+        ## key = '%s.%s'%(ns, f.name) if len(ns) > 0 else f.name
+        ## key = '%s[%d].%s'%(ns, index, f.name) if index >= 0 else key
+        ## property_map_key = '%s.%d.%s'%(ns, index, f.name) if index >= 0 else key
+        print('f.is_builtin: ' + str(f.is_builtin))
+        print('f.is_array: ' + str(f.is_array))
+    %>
+    % if (f.is_builtin == True and f.is_array == False):
+    try {
+        % if f.type == 'time':
+        goal.${key} = ros::Time(boost::lexical_cast<double>(properties.at("${property_map_key}")));
+        % elif f.type == 'duration':
+        goal.${key} = ros::Duration(boost::lexical_cast<double>(properties.at("${property_map_key}")));
+        % elif f.type == 'int8' or f.type == 'uint8':
+        goal.${key} = boost::numeric_cast<${to_cpp_type(f.type)}>(boost::lexical_cast<int>(properties.at("${property_map_key}")));
+        % else:
+        goal.${key} = boost::lexical_cast<${to_cpp_type(f.type)}>(properties.at("${property_map_key}"));
+        % endif
+    } catch (...) {
+        throw std::out_of_range("Missing property (${key}) in mission model.");
+    }
+    % elif f.is_builtin == True and f.is_array == True:
+    if (properties.find("${property_map_key}") != properties.end()) {
+        std::vector<std::string> strings = trace::ConnectorInterface::string_to_vector(properties.at("${property_map_key}"));
+        for (size_t ${depth_var} = 0; ${depth_var} < strings.size(); ++${depth_var}) {
+            % if f.base_type == 'time':
+            goal.${key}.push_back(ros::Time(boost::lexical_cast<double>(strings[${depth_var}])));
+            % elif f.base_type == 'duration':
+            goal.${key}.push_back(ros::Duration(boost::lexical_cast<double>(strings[${depth_var}])));
+            % elif f.base_type == 'int8' or f.base_type == 'uint8':
+            goal.${key}.push_back(boost::numeric_cast<${to_cpp_type(f.base_type)}>(boost::lexical_cast<int>(strings[${depth_var}])));
+            % else:
+            goal.${key}.push_back(boost::lexical_cast<${to_cpp_type(f.base_type)}>(strings[${depth_var}]));
+            % endif
+        }
+    } else {
+        for (size_t ${depth_var} = 0; ${depth_var} < std::numeric_limits<size_t>::max(); ++${depth_var}) {
+            try {
+                % if f.base_type == 'time':
+                goal.${key}.push_back(ros::Time(boost::lexical_cast<double>(properties.at("${property_map_key}." + std::to_string(${depth_var})))));
+                % elif f.base_type == 'duration':
+                goal.${key}.push_back(ros::Duration(boost::lexical_cast<double>(properties.at("${property_map_key}." + std::to_string(${depth_var})))));
+                % elif f.base_type == 'int8' or f.base_type == 'uint8':
+                goal.${key}.push_back(boost::numeric_cast<${to_cpp_type(f.base_type)}>(boost::lexical_cast<int>(properties.at("${property_map_key}." + std::to_string(${depth_var})))));
+                % else:
+                goal.${key}.push_back(boost::lexical_cast<${to_cpp_type(f.base_type)}>(properties.at("${property_map_key}." + std::to_string(${depth_var}))));
+                % endif
+            } catch (...) {
+                break;
+            }
+        }
+    }
+    % elif f.is_header == False and f.is_array == False:
+    <%
+        field_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path) 
+    %>
+    ${print_field_mapping(field_spec, msg_context, search_path, key, depth)}    
+    % elif f.is_header == False and f.is_array == True:
+    for (size_t ${depth_var} = 0; ${depth_var} < std::numeric_limits<size_t>::max(); ++${depth_var}) {
+        <%
+        field_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path) 
+        field_type = f.base_type.replace("/", "::")
+        %>
+        ${field_type} o;
+        goal.${key}.push_back(o);
+        try {
+            ${print_field_mapping(field_spec, msg_context, search_path, key + '[' + depth_var + ']', depth+1)}
+        } catch (...) {
+            goal.${key}.pop_back();
+            break;
+        }
+    }
+    % else:
+    // unknown key: ${key}
+    % endif
+%endfor
+</%def>
+
+<%
+  import genmsg
+  import genmsg.msg_loader
+  import genmsg.command_line
+  
+  import re
+
+
+  action_namespace = spec.package
+  action_name = spec.short_name
+  action_type = '::%s::%s'%(action_namespace, action_name)
+
+  action_header_uri = header_dest + '/%s_translator.h'%re.sub(r'(?<!^)(?=[A-Z])', '_', action_name).lower()
+
+  for f in spec.parsed_fields():
+    print('f.name: %s'%f.name)
+    if f.name == 'action_goal':
+        action_goal_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path)
+        for ff in action_goal_spec.parsed_fields():
+            if ff.name == 'goal':
+                goal_spec = genmsg.msg_loader.load_msg_by_type(msg_context, ff.base_type, search_path)
+                goal_type = '::%s::%s'%(goal_spec.package, goal_spec.short_name)
+                break
+    if f.name == 'action_result':
+        action_result_spec = genmsg.msg_loader.load_msg_by_type(msg_context, f.base_type, search_path)
+        for ff in action_result_spec.parsed_fields():
+            print('ff.name: %s'%ff.name)
+            if ff.name == 'result':
+                result_spec = genmsg.msg_loader.load_msg_by_type(msg_context, ff.base_type, search_path)
+                result_type = '::%s::%s'%(result_spec.package, result_spec.short_name)
+                break 
+%>
+<%include file="apache_license.template"/>
+
+#include "${action_header_uri}"
+#include "trace/connector/ConnectorInterface.hpp"
+
+#include <boost/lexical_cast.hpp>
+#include <boost/numeric/conversion/cast.hpp>
+#include <ros/ros.h>
+
+#include <stdexcept>
+
+namespace trace {
+namespace ros_msgs_autocoder {
+
+${goal_type} ${action_name}Translator::ToGoal(const PropertyMap& properties) {
+
+    ${goal_type} goal;
+    ${print_field_mapping(goal_spec, msg_context, search_path)}
+    return goal;
+}
+
+PropertyMap ${action_name}Translator::FromResult(const ${result_type} &result) {
+    std::vector<std::string> strings;
+    PropertyMap properties;
+    ${map_result_to_property_map(result_spec, msg_context, search_path)}
+    return properties;
+}
+
+} // namespace ros_msgs_autocoder
+} // namespace trace

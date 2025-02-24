@@ -1,0 +1,33 @@
+<%!
+    import re
+%>
+<%include file="apache_license.template"/>
+
+#include "ros_msgs_autocoder/action_client_factory.h"
+#include "ros_msgs_autocoder/action_client.h"
+
+% for spec in msg_specs.values():
+#include <${spec.package}/${spec.short_name}.h>
+#include "${header_dest}/${re.sub(r'(?<!^)(?=[A-Z])', '_', spec.short_name).lower()}_translator.h"
+
+% endfor
+
+#include <stdexcept>
+
+namespace trace {
+namespace ros_msgs_autocoder {
+
+std::shared_ptr<trace::ServiceTaskInterface>
+CreateActionClientByType(const std::string &type,
+                          const std::string &action_topic) {
+% for spec in msg_specs.values():
+  if (type == "${spec.package}/${spec.short_name}") {
+    return std::make_shared<ActionClient<${'::%s::%s'%(spec.package, spec.short_name)}, ${spec.short_name}Translator>>(action_topic);
+  }
+% endfor
+  throw std::out_of_range("Unable to instantiate a client for action (" + type + ").");
+}
+
+
+} // namespace ros_msgs_autocoder
+} // namespace trace

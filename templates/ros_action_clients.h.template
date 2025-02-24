@@ -1,0 +1,22 @@
+<%!
+    import re
+%>
+<%include file="apache_license.template"/>
+
+#pragma once
+
+% for spec in msg_specs.values():
+#include <${spec.package}/${spec.short_name}.h>
+#include "${header_dest}/${re.sub(r'(?<!^)(?=[A-Z])', '_', spec.short_name).lower()}_translator.h"
+
+% endfor
+
+namespace trace {
+namespace ros_msgs_autocoder {
+
+% for spec in msg_specs.values():
+template class ActionClient<${'::%s::%s'%(spec.package, spec.short_name)}, ${spec.short_name}Translator>;
+
+% endfor
+} // namespace ros_msgs_autocoder
+} // namespace trace
