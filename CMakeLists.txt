@@ -39,7 +39,7 @@ execute_process(
     -n "${PROJECT_MSGS_PKGS}"
     -d "${PROJECT_MSGS_PKGS_DEVEL_PREFIXES}"
     -s "${PROJECT_MSGS_PKGS_SOURCE_PREFIXES}"
-    -p /opt/ros/melodic
+    -p /opt/ros/noetic
     -t ${CMAKE_CURRENT_SOURCE_DIR}/templates
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     OUTPUT_FILE ${CMAKE_BINARY_DIR}/msg_gen.log
